@@ -56,8 +56,9 @@ const FAILED_STEP_CONCLUSIONS = new Set([
 const CHECK_RUN_URL_PATTERN = /\/check-runs\/(?<checkRunId>\d+)$/u;
 // ANSI escape introducer (ESC, U+001B).
 const ANSI_ESCAPE = "\u001B";
-// CSI sequences, for example ESC[31m. Built from a string because a regex literal
-// cannot contain the escape control character directly.
+// CSI sequences, for example ESC[31m. Built from a string because the lint ruleset
+// rejects control characters in regex literals (eslint/no-control-regex), even as \u001B.
+// Only safe with global-replace methods: the `g` flag on a shared pattern carries lastIndex.
 const ANSI_ESCAPE_PATTERN = new RegExp(
   `${ANSI_ESCAPE}\\[[0-9;?]*[ -/]*[@-~]`,
   "gu"
@@ -191,16 +192,8 @@ const readPath = (value: unknown, keys: readonly string[]): unknown => {
 };
 
 /** Reads unknown JSON as an array of unknowns; non-arrays become an empty array. */
-const readArray = (value: unknown): unknown[] => {
-  if (!Array.isArray(value)) {
-    return [];
-  }
-  const items: unknown[] = [];
-  for (const item of value) {
-    items.push(item);
-  }
-  return items;
-};
+const readArray = (value: unknown): unknown[] =>
+  Array.isArray(value) ? value : [];
 
 /** Normalizes an unmatched or empty regex capture group to undefined. */
 const optionalGroup = (value: string | undefined): string | undefined =>
