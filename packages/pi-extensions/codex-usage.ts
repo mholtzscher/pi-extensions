@@ -8,6 +8,7 @@ const STATUS_KEY = "codex-weekly-usage";
 const USAGE_URL = "https://chatgpt.com/backend-api/wham/usage";
 const REQUEST_TIMEOUT_MS = 15 * 1000;
 const WEEK_SECONDS = 7 * 24 * 60 * 60;
+const JWT_CLAIM_PATH = "https://api.openai.com/auth";
 
 /** The model type the registry accepts, derived so pi-ai stays a transitive dep. */
 type RegistryModel = Parameters<
@@ -30,8 +31,8 @@ interface UsageWindow {
 
 interface UsageResponse {
   rate_limit?: {
-    primary_window?: UsageWindow;
-    secondary_window?: UsageWindow;
+    primary_window?: UsageWindow | null;
+    secondary_window?: UsageWindow | null;
   };
 }
 
@@ -55,10 +56,12 @@ const isUsageResponse = (value: unknown): value is UsageResponse => {
     return false;
   }
 
+  // Windows arrive as objects when active and null when the plan has no
+  // such window (e.g. secondary_window is null on current plans).
   const { primary_window: primary, secondary_window: secondary } = rateLimit;
   return (
-    (primary === undefined || isUsageWindow(primary)) &&
-    (secondary === undefined || isUsageWindow(secondary))
+    (primary === undefined || primary === null || isUsageWindow(primary)) &&
+    (secondary === undefined || secondary === null || isUsageWindow(secondary))
   );
 };
 
@@ -69,6 +72,9 @@ const isNumericString = (value: JsonValue | undefined): value is string =>
   typeof value === "string" &&
   value.trim() !== "" &&
   Number.isFinite(Number(value));
+
+const isNonEmptyString = (value: JsonValue | undefined): value is string =>
+  typeof value === "string" && value !== "";
 
 /** Reads a usage field that arrives as either a number or a numeric string. */
 const numberValue = (value: JsonValue | undefined): number | undefined => {
@@ -85,6 +91,35 @@ const hasHeader = (headers: Record<string, string>, name: string): boolean =>
   Object.keys(headers).some(
     (header) => header.toLowerCase() === name.toLowerCase()
   );
+
+/**
+ * Derives the ChatGPT account id from the Codex OAuth access token, mirroring
+ * pi's own Codex transport. The wham/usage backend requires it alongside the
+ * bearer token; without it requests fail and the meter shows unavailable.
+ */
+const extractAccountId = (token: string): string | undefined => {
+  try {
+    const parts = token.split(".");
+    const [, payload] = parts;
+    if (parts.length !== 3 || payload === undefined) {
+      return undefined;
+    }
+    const decoded: unknown = JSON.parse(
+      Buffer.from(payload, "base64url").toString("utf-8")
+    );
+    if (!isObject(decoded)) {
+      return undefined;
+    }
+    const claim = decoded[JWT_CLAIM_PATH];
+    if (!isObject(claim)) {
+      return undefined;
+    }
+    const accountId = claim.chatgpt_account_id;
+    return isNonEmptyString(accountId) ? accountId : undefined;
+  } catch {
+    return undefined;
+  }
+};
 
 const fetchWithTimeout = async (
   url: string,
@@ -140,6 +175,19 @@ const getAuthHeaders = async (
     ) {
       headers.Authorization = `Bearer ${auth.apiKey}`;
     }
+    if (
+      !hasHeader(headers, "chatgpt-account-id") &&
+      auth.apiKey !== undefined &&
+      auth.apiKey !== ""
+    ) {
+      const accountId = extractAccountId(auth.apiKey);
+      if (accountId !== undefined) {
+        headers["chatgpt-account-id"] = accountId;
+      }
+    }
+    if (!hasHeader(headers, "originator")) {
+      headers.originator = "pi";
+    }
     if (hasHeader(headers, "Authorization")) {
       return headers;
     }
@@ -155,12 +203,12 @@ const findWeeklyWindow = (response: UsageResponse): UsageWindow | undefined => {
   }
 
   const windows = [rateLimit.primary_window, rateLimit.secondary_window].filter(
-    (window): window is UsageWindow => window !== undefined
+    (window): window is UsageWindow => window !== undefined && window !== null
   );
   return (
     windows.find(
       (window) => numberValue(window.limit_window_seconds) === WEEK_SECONDS
-    ) ?? rateLimit.secondary_window
+    ) ?? windows.at(-1)
   );
 };
 
