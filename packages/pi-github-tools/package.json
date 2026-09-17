@@ -1,6 +1,6 @@
 {
   "name": "@mholtzscher/pi-github-tools",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "description": "Pi extension: GitHub PR creation, review-thread validation, and Actions failure tools",
   "keywords": [
     "github",

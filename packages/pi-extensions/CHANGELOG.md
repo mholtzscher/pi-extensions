@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.2.2](https://github.com/mholtzscher/pi-extensions/compare/pi-extensions-v0.2.1...pi-extensions-v0.2.2) (2026-09-17)
+
+
+### Bug Fixes
+
+* **github-tools:** remove humanlayer paths from pr prompts ([#6](https://github.com/mholtzscher/pi-extensions/issues/6)) ([51cc153](https://github.com/mholtzscher/pi-extensions/commit/51cc1530f6e96957b6305aa922c11b2d4215614c))
+
 ## [0.2.1](https://github.com/mholtzscher/pi-extensions/compare/pi-extensions-v0.2.0...pi-extensions-v0.2.1) (2026-09-17)
 
 
