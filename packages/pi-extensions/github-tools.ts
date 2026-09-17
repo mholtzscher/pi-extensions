@@ -43,8 +43,18 @@ const GITHUB_ACTIONS_URL =
 const MAX_FAILED_LOG_CHARS = 22_000;
 const MAX_CONTEXT_CHARS = 30_000;
 const MAX_FAILED_ACTION_URLS = 3;
-const PR_CHECK_JSON_FIELDS =
-  "bucket,completedAt,description,event,link,name,startedAt,state,workflow";
+/** Fields requested from `gh pr checks --json`; the row type derives from them. */
+const PR_CHECK_JSON_FIELDS = [
+  "bucket",
+  "completedAt",
+  "description",
+  "event",
+  "link",
+  "name",
+  "startedAt",
+  "state",
+  "workflow",
+] as const;
 const ERROR_LINE_PATTERN =
   /(?<prefix>^|[\s›])(?<marker>✘|error|failed|failure|exception|traceback|panic|fatal|GH\d{3}|exit code|remote:|rejected|denied|timed out|segmentation fault|core dumped)/iu;
 const FAILED_STEP_CONCLUSIONS = new Set([
@@ -117,17 +127,8 @@ interface PullRequestCommandArguments {
   request: string;
 }
 
-interface PullRequestCheck {
-  bucket: string;
-  completedAt: string;
-  description: string;
-  event: string;
-  link: string;
-  name: string;
-  startedAt: string;
-  state: string;
-  workflow: string;
-}
+/** A row from `gh pr checks --json`; every requested field is a string. */
+type PullRequestCheck = Record<(typeof PR_CHECK_JSON_FIELDS)[number], string>;
 
 interface GithubActionsUrl {
   url: string;
@@ -159,30 +160,47 @@ interface OpenPullRequest {
   isDraft?: boolean;
 }
 
-/** Narrows any JSON value to a plain object. */
-const isRecord = (value: unknown): value is Record<string, unknown> =>
+/** Every value the gh CLI can return through a JSON round trip. */
+type JsonValue = boolean | number | string | null | JsonValue[] | JsonObject;
+
+/** Decoded JSON object; keys come from gh, values stay within JsonValue. */
+interface JsonObject {
+  [key: string]: JsonValue | undefined;
+}
+
+/**
+ * Narrows unparsed input to a plain object. Raw input is decoded here: the
+ * anti-slop ruleset allows an `unknown` parameter only on a type predicate, so
+ * every decoder that inspects unparsed input is a predicate like this one.
+ */
+const isRecord = (value: unknown): value is JsonObject =>
   typeof value === "object" && value !== null && !Array.isArray(value);
 
-const isString = (value: unknown): value is string => typeof value === "string";
+const isString = (value: JsonValue | undefined): value is string =>
+  typeof value === "string";
 
-const isNonEmptyString = (value: unknown): value is string =>
+const isNonEmptyString = (value: string | null | undefined): value is string =>
   typeof value === "string" && value !== "";
 
-const isNullableNumber = (value: unknown): value is number | null =>
-  typeof value === "number" || value === null;
+const isNullableNumber = (
+  value: JsonValue | undefined
+): value is number | null => typeof value === "number" || value === null;
 
 const isArrayOf = <T>(
   value: unknown,
   isItem: (item: unknown) => item is T
-): value is T[] =>
-  Array.isArray(value) && value.every((item: unknown) => isItem(item));
+): value is T[] => Array.isArray(value) && value.every((item) => isItem(item));
 
-/** Coerces unknown JSON to a string, substituting an empty string. */
-const readText = (value: unknown): string => (isString(value) ? value : "");
+/** Coerces decoded JSON to a string, substituting an empty string. */
+const readText = (value: JsonValue | undefined): string =>
+  isString(value) ? value : "";
 
 /** Reads a nested JSON path, returning undefined as soon as a level is not an object. */
-const readPath = (value: unknown, keys: readonly string[]): unknown => {
-  let current: unknown = value;
+const readPath = (
+  value: JsonValue | undefined,
+  keys: readonly string[]
+): JsonValue | undefined => {
+  let current = value;
   for (const key of keys) {
     if (!isRecord(current)) {
       return undefined;
@@ -192,18 +210,27 @@ const readPath = (value: unknown, keys: readonly string[]): unknown => {
   return current;
 };
 
-/** Reads unknown JSON as an array of unknowns; non-arrays become an empty array. */
-const readArray = (value: unknown): unknown[] =>
+/** Reads decoded JSON as an array of values; non-arrays become an empty array. */
+const readArray = (value: JsonValue | undefined): JsonValue[] =>
   Array.isArray(value) ? value : [];
 
 /** Normalizes an unmatched or empty regex capture group to undefined. */
 const optionalGroup = (value: string | undefined): string | undefined =>
   value === undefined || value === "" ? undefined : value;
 
-const githubErrorMessage = (error: unknown): string =>
-  error instanceof Error ? error.message : String(error);
+/** Describes a value caught from the gh CLI; `cause` is the unparsed boundary name. */
+const githubErrorMessage = (cause: unknown): string =>
+  cause instanceof Error ? cause.message : String(cause);
 
-const formatJson = (value: unknown): string => JSON.stringify(value, null, 2);
+/** gh rejects with a process error that carries the captured stderr. */
+const isCaughtProcessError = (cause: unknown): cause is { stderr: string } =>
+  typeof cause === "object" &&
+  cause !== null &&
+  "stderr" in cause &&
+  typeof cause.stderr === "string";
+
+const formatJson = (value: JsonValue | undefined): string =>
+  JSON.stringify(value, null, 2);
 
 const isGhUserOrNullish = (
   value: unknown
@@ -272,15 +299,43 @@ const isOpenPullRequest = (value: unknown): value is OpenPullRequest =>
   isGhUserOrNullish(value.author) &&
   (value.isDraft === undefined || typeof value.isDraft === "boolean");
 
-const parseJson = (text: string): unknown => {
+/**
+ * Decodes text into the JSON domain. `JSON.parse` is the I/O boundary; this
+ * predicate proves the parsed value is JSON before a typed helper sees it.
+ */
+const isJsonValue = (value: unknown): value is JsonValue => {
+  if (value === null) {
+    return true;
+  }
+  if (Array.isArray(value)) {
+    return value.every((item) => isJsonValue(item));
+  }
+  if (typeof value === "object") {
+    return Object.values(value).every((item) => isJsonValue(item));
+  }
+  return (
+    typeof value === "string" ||
+    typeof value === "number" ||
+    typeof value === "boolean"
+  );
+};
+
+const parseJson = (text: string): JsonValue | undefined => {
   try {
-    return JSON.parse(text) as unknown;
+    const parsed: unknown = JSON.parse(text);
+    return isJsonValue(parsed) ? parsed : undefined;
   } catch {
     return undefined;
   }
 };
 
-const requireParsedJson = (text: string, description: string): unknown => {
+/** Decodes gh CLI text that must be a JSON object, or undefined when it is not. */
+const parseJsonObject = (text: string): JsonObject | undefined => {
+  const parsed: unknown = parseJson(text);
+  return isRecord(parsed) ? parsed : undefined;
+};
+
+const requireParsedJson = (text: string, description: string): JsonValue => {
   const parsed = parseJson(text);
   if (parsed === undefined) {
     throw new Error(`gh returned invalid JSON for ${description}`);
@@ -724,9 +779,10 @@ const runGh = async (
     });
     return { stderr, stdout };
   } catch (error) {
+    const stderr = isCaughtProcessError(error) ? error.stderr : "";
     const message = [
       `gh ${args.join(" ")} failed: ${githubErrorMessage(error)}`,
-      readText(readPath(error, ["stderr"])).trim(),
+      stderr.trim(),
     ]
       .filter(Boolean)
       .join("\n");
@@ -874,25 +930,25 @@ const saveFullLog = async (
   return file;
 };
 
-const isFailedOrInterestingStep = (value: unknown): boolean => {
+const isFailedOrInterestingStep = (value: JsonValue): boolean => {
   const conclusion = readText(readPath(value, ["conclusion"])).toLowerCase();
   const status = readText(readPath(value, ["status"])).toLowerCase();
   return FAILED_STEP_CONCLUSIONS.has(conclusion) || status !== "completed";
 };
 
-const failedOrInterestingSteps = (job: unknown): unknown[] =>
+const failedOrInterestingSteps = (job: JsonValue): JsonValue[] =>
   readArray(readPath(job, ["steps"])).filter(isFailedOrInterestingStep);
 
-const failedOrInterestingJobs = (run: unknown): unknown[] =>
+const failedOrInterestingJobs = (run: JsonValue): JsonValue[] =>
   readArray(readPath(run, ["jobs"])).filter(isFailedOrInterestingStep);
 
-const checkRunIdFromJob = (job: unknown): string | undefined => {
+const checkRunIdFromJob = (job: JsonValue): string | undefined => {
   const url = readText(readPath(job, ["check_run_url"]));
   return CHECK_RUN_URL_PATTERN.exec(url)?.groups?.checkRunId;
 };
 
 const collectCheckAnnotationSections = async (
-  job: unknown,
+  job: JsonValue,
   repoArg: string,
   signal?: AbortSignal
 ): Promise<string[]> => {
@@ -949,8 +1005,8 @@ const collectJobSections = async (
       ["api", `repos/${repoArg}/actions/jobs/${actionsUrl.jobId}`],
       signal
     );
-    const job = parseJson(jobResult.stdout);
-    if (!isRecord(job)) {
+    const job = parseJsonObject(jobResult.stdout);
+    if (job === undefined) {
       return [];
     }
 
@@ -1003,8 +1059,8 @@ const collectRunSections = async (
       runViewArgs.push("--attempt", actionsUrl.attempt);
     }
     const runResult = await runGh(runViewArgs, signal);
-    const run = parseJson(runResult.stdout);
-    if (!isRecord(run)) {
+    const run = parseJsonObject(runResult.stdout);
+    if (run === undefined) {
       return [];
     }
 
@@ -1130,7 +1186,7 @@ const readCurrentPullRequestChecks = async (
 ): Promise<PullRequestCheck[]> => {
   const result = await pi.exec(
     "gh",
-    ["pr", "checks", "--json", PR_CHECK_JSON_FIELDS],
+    ["pr", "checks", "--json", PR_CHECK_JSON_FIELDS.join(",")],
     {
       cwd,
       signal,

@@ -14,10 +14,18 @@ type RegistryModel = Parameters<
   ExtensionContext["modelRegistry"]["getApiKeyAndHeaders"]
 >[0];
 
+/** Every value the usage endpoint can return through a JSON round trip. */
+type JsonValue = boolean | number | string | null | JsonValue[] | JsonObject;
+
+/** Decoded JSON object; keys come from the endpoint, values stay within JsonValue. */
+interface JsonObject {
+  [key: string]: JsonValue | undefined;
+}
+
 interface UsageWindow {
-  used_percent?: unknown;
-  limit_window_seconds?: unknown;
-  reset_at?: unknown;
+  used_percent?: JsonValue;
+  limit_window_seconds?: JsonValue;
+  reset_at?: JsonValue;
 }
 
 interface UsageResponse {
@@ -27,7 +35,9 @@ interface UsageResponse {
   };
 }
 
-const isObject = (value: unknown): value is Record<string, unknown> =>
+// `value: unknown` is deliberate: the ruleset exempts type-predicate subjects, so
+// every decoder that takes unparsed input is a predicate like this one.
+const isObject = (value: unknown): value is JsonObject =>
   typeof value === "object" && value !== null;
 
 const isUsageWindow = (value: unknown): value is UsageWindow => isObject(value);
@@ -52,15 +62,21 @@ const isUsageResponse = (value: unknown): value is UsageResponse => {
   );
 };
 
-const numberValue = (value: unknown): number | undefined => {
-  if (typeof value === "number" && Number.isFinite(value)) {
+const isFiniteNumber = (value: JsonValue | undefined): value is number =>
+  typeof value === "number" && Number.isFinite(value);
+
+const isNumericString = (value: JsonValue | undefined): value is string =>
+  typeof value === "string" &&
+  value.trim() !== "" &&
+  Number.isFinite(Number(value));
+
+/** Reads a usage field that arrives as either a number or a numeric string. */
+const numberValue = (value: JsonValue | undefined): number | undefined => {
+  if (isFiniteNumber(value)) {
     return value;
   }
-  if (typeof value === "string" && value.trim() !== "") {
-    const parsed = Number(value);
-    if (Number.isFinite(parsed)) {
-      return parsed;
-    }
+  if (isNumericString(value)) {
+    return Number(value);
   }
   return undefined;
 };

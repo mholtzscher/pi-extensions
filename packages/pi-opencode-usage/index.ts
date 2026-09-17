@@ -16,14 +16,28 @@ type RegistryModel = Parameters<
 
 type UsageWindowName = (typeof WINDOW_NAMES)[number];
 
-interface UsageWindow {
+/** Every value the usage endpoint can return through a JSON round trip. */
+type JsonValue = boolean | number | string | null | JsonValue[] | JsonObject;
+
+/** Decoded JSON object; keys come from the endpoint, values stay within JsonValue. */
+interface JsonObject {
+  [key: string]: JsonValue | undefined;
+}
+
+/**
+ * A usage window as the endpoint reports it. Extending JsonObject keeps it inside
+ * the decoded-JSON domain, so usage entries can be narrowed to it directly.
+ */
+interface UsageWindow extends JsonObject {
   percent: number;
   resetsAt: string;
 }
 
 type Usage = Partial<Record<UsageWindowName, UsageWindow>>;
 
-const isObject = (value: unknown): value is Record<string, unknown> =>
+// `value: unknown` is deliberate: the ruleset exempts type-predicate subjects, so
+// every decoder that takes unparsed input is a predicate like this one.
+const isObject = (value: unknown): value is JsonObject =>
   typeof value === "object" && value !== null;
 
 const isWindowName = (name: string): name is UsageWindowName =>
@@ -35,23 +49,14 @@ const isUsageWindow = (value: unknown): value is UsageWindow =>
   Number.isFinite(value.percent) &&
   typeof value.resetsAt === "string";
 
-const parseUsage = (response: unknown): Usage => {
-  if (!isObject(response)) {
-    return {};
-  }
-
-  const { usage } = response;
-  if (!isObject(usage)) {
-    return {};
-  }
-
-  return Object.fromEntries(
+/** Collects the usage windows the endpoint reports, skipping unknown ones. */
+const parseUsage = (usage: JsonObject): Usage =>
+  Object.fromEntries(
     Object.entries(usage).filter(
       (entry): entry is [UsageWindowName, UsageWindow] =>
         isWindowName(entry[0]) && isUsageWindow(entry[1])
     )
   );
-};
 
 const remainingPercent = (window: UsageWindow): string =>
   Math.max(0, Math.min(100, 100 - window.percent)).toFixed(0);
@@ -145,17 +150,27 @@ export default function opencodeGoUsage(pi: ExtensionAPI) {
         throw new Error(`HTTP ${response.status}`);
       }
 
-      const usage = parseUsage(await response.json());
+      const parsed: unknown = await response.json();
+      if (!isObject(parsed)) {
+        throw new Error("unexpected usage response");
+      }
+
+      const { usage } = parsed;
+      if (!isObject(usage)) {
+        throw new Error("usage windows missing");
+      }
+
+      const windows = parseUsage(usage);
       if (
-        usage.rolling === undefined &&
-        usage.weekly === undefined &&
-        usage.monthly === undefined
+        windows.rolling === undefined &&
+        windows.weekly === undefined &&
+        windows.monthly === undefined
       ) {
         throw new Error("usage windows missing");
       }
 
       if (active && currentRequest === requestId) {
-        ctx.ui.setStatus(STATUS_KEY, formatUsage(usage));
+        ctx.ui.setStatus(STATUS_KEY, formatUsage(windows));
       }
     } catch {
       if (active && currentRequest === requestId) {
