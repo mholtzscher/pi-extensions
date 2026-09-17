@@ -123,21 +123,11 @@ Oxlint + Oxfmt's linter will catch most issues automatically. Focus your attenti
 
 ## Testing Extensions Locally
 
-- Load a local extension file without installing it:
-  `pi --extension packages/<name>/index.ts`
-- Add `--no-extensions` when testing (`pi --no-extensions --extension ...`)
-  so the installed bundle can't also load and fight over the same status
-  keys or event handlers with stale code.
-- `packages/pi-extensions/*` are copies synced from the source packages via
-  `npm run sync` (also runs on prepack). Fix the source package, then sync.
-- To verify in Herdr (requires `HERDR_ENV=1`), split a sibling pane and
-  start pi with the local file, keeping focus in the current pane:
-  `herdr pane split --current --direction right --cwd "$PWD" --no-focus`
-  `herdr agent start <name> --kind pi --pane <id> -- --no-extensions --extension <abs path>`
-  then check the status bar with `herdr agent read <name> --source visible`.
-  Close panes you created when done (`herdr pane close <id>`).
-- To debug provider auth/endpoints directly, compare against the extension's
-  behavior with `pi auth print-bearer-token --provider <provider>` plus curl.
+- Load a local extension file without installing it: `pi --extension packages/<name>/index.ts`
+- Add `--no-extensions` when testing (`pi --no-extensions --extension ...`) so the installed bundle can't also load and fight over the same status keys or event handlers with stale code.
+- `packages/pi-extensions/*` are copies synced from the source packages via `npm run sync` (also runs on prepack). Fix the source package, then sync.
+- To verify in Herdr (requires `HERDR_ENV=1`), split a sibling pane and start pi with the local file, keeping focus in the current pane: `herdr pane split --current --direction right --cwd "$PWD" --no-focus` `herdr agent start <name> --kind pi --pane <id> -- --no-extensions --extension <abs path>` then check the status bar with `herdr agent read <name> --source visible`. Close panes you created when done (`herdr pane close <id>`).
+- To debug provider auth/endpoints directly, compare against the extension's behavior with `pi auth print-bearer-token --provider <provider>` plus curl.
 
 ---
 
