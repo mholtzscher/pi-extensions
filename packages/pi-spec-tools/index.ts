@@ -75,6 +75,27 @@ When finished, report:
 const buildScrubPrompt = (specPath: string): string =>
   `/skill:unslop ${buildScrubTaskPrompt(specPath)}`;
 
+const buildSimplifyPrompt = (specPath: string): string =>
+  `Read @${specPath} completely.
+
+Now come up with a much simpler solution that provides 80% of the benefits we are talking about here.
+
+Goals:
+
+- Identify the core user value — the 20% of the spec delivering 80% of the benefit — and center the simpler solution on that.
+- Ruthlessly cut scope: defer nice-to-haves, edge cases, premature abstractions, and speculative extensibility.
+- Prefer boring, proven approaches: fewer moving parts, fewer new types, interfaces, routes, and config options, less concurrency and error-handling surface.
+- Preserve the spec's intent for the core use case; explicitly list what is dropped or deferred and why the trade-off is worth it.
+
+Process:
+
+1. State in one or two sentences what the highest-value outcome of the spec is.
+2. Propose the simpler solution: what to build instead, end to end.
+3. Compare the two: what is kept, what is cut or deferred, and roughly how much complexity each cut saves.
+4. Call out what is lost — the 20% of benefits given up — so it is an explicit decision.
+
+Do not edit any files. Present the simpler alternative in chat and wait for direction before changing the spec.`;
+
 const buildAnnotationPrompt = (specPath: string): string =>
   `/plannotator-annotate @${specPath}`;
 
@@ -282,6 +303,13 @@ export default function piSpecTools(pi: ExtensionAPI) {
     description: "Choose a file from specs/ and ask the agent to refine it",
     name: "scrub-spec",
     pickerTitle: "Choose a specification to refine",
+  });
+  registerSpecCommand(pi, {
+    buildPrompt: buildSimplifyPrompt,
+    description:
+      "Choose a file from specs/ and ask the agent to propose a much simpler solution with 80% of the benefits",
+    name: "simplify-spec",
+    pickerTitle: "Choose a specification to simplify",
   });
   registerSpecCommand(pi, {
     buildPrompt: buildAnnotationPrompt,
