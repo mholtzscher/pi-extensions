@@ -1,6 +1,6 @@
 {
   "name": "@mholtzscher/pi-spec-tools",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Pi extension: specs/ picker commands for implement and scrub workflows",
   "keywords": [
     "pi",
