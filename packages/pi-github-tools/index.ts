@@ -436,8 +436,7 @@ const escapeReviewThreadDelimiters = (value: string): string =>
 
 const PR_DESCRIBE_FLAGS = ["--describe", "--update", "--refresh"] as const;
 
-// Condensed from humanlayer visual-pr skill (references/pr_description_template.md
-// and references/show-me.md). Inlined so the extension stays self-contained.
+// PR body template. Inlined so the extension stays self-contained.
 const PR_BODY_TEMPLATE_INSTRUCTIONS = `Write the PR body using this template exactly — do not add sections beyond it:
 
 [{RELEVANT LINK}]({RELEVANT LINK}) | ... (header row of ticket/task/plan URLs; include only when known, otherwise omit the line)
@@ -458,9 +457,7 @@ A compact, visual outline — not prose and not a file-by-file changelog. Includ
 Prefer \`diff\` blocks for edits to an existing shape; show the complete target shape when most of it is new or when diff notation would obscure ownership or order.
 Write as one human talking to another: simple, coherent, concise.`;
 
-const PR_DESCRIPTION_PUBLISH_INSTRUCTIONS = `Save and publish the description:
-- If a \`.humanlayer/tasks/{task-slug}/\` directory exists for the current task, save to \`.humanlayer/tasks/{task-slug}/pr-description.md\`; otherwise save to \`.humanlayer/tasks/pr-{number}/description.md\` (create directories as needed).
-- Publish with \`gh pr edit {number} --body-file {output-path}\` and confirm the update succeeded.`;
+const PR_DESCRIPTION_PUBLISH_INSTRUCTIONS = `Publish the description with \`gh pr edit {number} --body "..."\`; for long bodies, write the body to a file under \`/tmp/\` (for example \`/tmp/pr-{number}-body.md\`) and publish with \`gh pr edit {number} --body-file <path>\`. Confirm the update succeeded.`;
 
 const parsePullRequestCommandArguments = (
   args: string
@@ -497,13 +494,13 @@ const buildPullRequestPrompt = (args: string): string => {
 4. **Push and open a PR** — push the selected branch with \`git push -u origin <branch>\`, then open a PR against the discovered default branch using \`gh pr create --base <default-branch>\`:
    - Title: the same as the commit subject.
    - ${PR_BODY_TEMPLATE_INSTRUCTIONS}
-   - Publish the body with \`gh\`'s \`--body\` flag or a heredoc.
+   - Publish the body with \`gh\`'s \`--body\` flag or a heredoc; for long bodies, write to a file under \`/tmp/\` and use \`--body-file\`.
    - ${PR_DESCRIPTION_PUBLISH_INSTRUCTIONS.replaceAll("{number}", "<PR-NUMBER>")}
    - If \`gh\` is unavailable or auth fails, stop and report the exact error instead of falling back to manual instructions.
 
 5. **GitHub checks** — ${checkInstruction}
 
-6. **Report back** — report using this shape: PR link with number and title, saved description path, 2-3 sentence summary, and a concise list of changed files.
+6. **Report back** — report using this shape: PR link with number and title, 2-3 sentence summary, and a concise list of changed files.
 
 Requested branch name or PR description:
 ${request || "(none provided; infer it from the relevant changes)"}`;
@@ -526,11 +523,11 @@ const buildPrDescribePrompt = (
 
 3. **Write the description** — ${PR_BODY_TEMPLATE_INSTRUCTIONS}
 
-4. **Save and publish** — ${PR_DESCRIPTION_PUBLISH_INSTRUCTIONS.replaceAll("{number}", String(pr.number))}
+4. **Publish** — ${PR_DESCRIPTION_PUBLISH_INSTRUCTIONS.replaceAll("{number}", String(pr.number))}
 
 5. **GitHub checks** — ${checkInstruction}
 
-6. **Report back** — report using this shape: PR link with number and title, saved description path, 2-3 sentence summary, and a concise list of changed files.
+6. **Report back** — report using this shape: PR link with number and title, 2-3 sentence summary, and a concise list of changed files.
 
 User guidance for this description (takes precedence when provided):
 ${request || "(none provided; infer it from the PR diff)"}`;
