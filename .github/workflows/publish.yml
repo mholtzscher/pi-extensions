@@ -1,0 +1,48 @@
+name: publish
+
+# Publishes exactly one workspace package per release-please GitHub release.
+# release-please tags look like `pi-exit-v0.2.0`; the component prefix selects
+# the workspace. The bundle's files are synced from packages/pi-*/index.ts by
+# its own `prepack` script during `npm publish`.
+
+on:
+  release:
+    types:
+      - published
+
+permissions:
+  contents: read
+  id-token: write # required for `npm publish --provenance`
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          registry-url: https://registry.npmjs.org
+
+      - run: npm ci
+
+      - name: Resolve workspace from release tag
+        id: pkg
+        run: |
+          TAG="${{ github.event.release.tag_name }}"
+          COMPONENT="${TAG%-v*}"
+          case "$COMPONENT" in
+            pi-exit) SCOPE="@mholtzscher/pi-exit" ;;
+            pi-github-tools) SCOPE="@mholtzscher/pi-github-tools" ;;
+            pi-spec-tools) SCOPE="@mholtzscher/pi-spec-tools" ;;
+            pi-codex-usage) SCOPE="@mholtzscher/pi-codex-usage" ;;
+            pi-opencode-usage) SCOPE="@mholtzscher/pi-opencode-usage" ;;
+            pi-extensions) SCOPE="@mholtzscher/pi-extensions" ;;
+            *) echo "unknown release component: $COMPONENT (tag: $TAG)"; exit 1 ;;
+          esac
+          echo "scope=$SCOPE" >> "$GITHUB_OUTPUT"
+
+      - run: npm publish -w ${{ steps.pkg.outputs.scope }} --provenance --access public
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}

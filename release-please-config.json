@@ -1,0 +1,26 @@
+{
+  "$schema": "https://raw.githubusercontent.com/googleapis/release-please/main/schemas/config.json",
+  "release-type": "node",
+  "include-component-in-tag": true,
+  "include-v-in-tag": true,
+  "packages": {
+    "packages/pi-exit": {
+      "component": "pi-exit"
+    },
+    "packages/pi-github-tools": {
+      "component": "pi-github-tools"
+    },
+    "packages/pi-spec-tools": {
+      "component": "pi-spec-tools"
+    },
+    "packages/pi-codex-usage": {
+      "component": "pi-codex-usage"
+    },
+    "packages/pi-opencode-usage": {
+      "component": "pi-opencode-usage"
+    },
+    "packages/pi-extensions": {
+      "component": "pi-extensions"
+    }
+  }
+}

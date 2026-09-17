@@ -1,0 +1,30 @@
+name: check
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - run: npm ci
+
+      - run: npm run check
+
+      # The bundle's *.ts files are synced copies of packages/pi-*/index.ts.
+      # Committing them (instead of gitignoring) means release-please sees the
+      # bundle change and versions it. This fails the build if sync is stale.
+      - name: Verify bundle is in sync
+        run: |
+          npm run sync -w @mholtzscher/pi-extensions --silent
+          git diff --exit-code -- packages/pi-extensions/*.ts

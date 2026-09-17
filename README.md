@@ -62,4 +62,28 @@ for p in pi-github-tools pi-spec-tools pi-codex-usage pi-opencode-usage pi-exten
 done
 ```
 
-Bump with `npm version patch|minor|major -w @mholtzscher/<name>` per package.
+## Releasing (release-please)
+
+Releases are automated with [release-please](https://github.com/googleapis/release-please)
+(`release-please-config.json` + `.release-please-manifest.json`).
+
+- **Commit convention matters.** Use Conventional Commits: `feat:` bumps minor,
+  `fix:` bumps patch (pre-1.0 defaults). `chore:`/`docs:` alone trigger no release.
+- **Editing flow.** Edit `packages/pi-*/index.ts`, then run
+  `npm run sync -w @mholtzscher/pi-extensions` so the bundle picks up the change
+  (CI fails if the bundle is stale — the bundle's files are committed copies so
+  release-please versions the bundle too).
+- **Release PR.** Pushing to `main` makes release-please open or update a single
+  release PR with version bumps + CHANGELOG entries per changed package. Merging
+  it creates one tag + GitHub release per package (`pi-exit-v0.2.0`, …).
+- **npm publish.** The `publish` workflow fires on each GitHub release, resolves
+  the workspace from the tag, and runs
+  `npm publish -w @mholtzscher/<name> --provenance --access public`.
+
+One-time setup (repo Settings → Secrets and variables → Actions):
+
+- `NPM_TOKEN`: a granular npm access token with read+write on the
+  `@mholtzscher` scope. (Alternative: npm trusted publishing for the GitHub
+  repo, in which case the token can be dropped — `id-token: write` is already set.)
+- Push this repo to GitHub first; release-please opens its first release PR
+  after the first `feat:`/`fix:` commit lands on `main`.
