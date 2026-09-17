@@ -113,6 +113,7 @@ interface RepoView {
 
 interface PullRequestCommandArguments {
   watchChecks: boolean;
+  describe: boolean;
   request: string;
 }
 
@@ -378,12 +379,44 @@ const escapeReviewThreadDelimiters = (value: string): string =>
       "\\u003c/github-pr-review-threads\\u003e"
     );
 
+const PR_DESCRIBE_FLAGS = ["--describe", "--update", "--refresh"] as const;
+
+// Condensed from humanlayer visual-pr skill (references/pr_description_template.md
+// and references/show-me.md). Inlined so the extension stays self-contained.
+const PR_BODY_TEMPLATE_INSTRUCTIONS = `Write the PR body using this template exactly — do not add sections beyond it:
+
+[{RELEVANT LINK}]({RELEVANT LINK}) | ... (header row of ticket/task/plan URLs; include only when known, otherwise omit the line)
+
+## Why the change
+Exactly one sentence explaining the problem this PR solves and what becomes possible after it ships.
+
+## Special things to note
+1-3 bullets for reviewer warnings, migrations, compatibility constraints, deliberate omissions, or surprising decisions. Use \`- None.\` when there is nothing special.
+
+## Change outline
+A compact, visual outline — not prose and not a file-by-file changelog. Include only the views that explain this PR, ordered for narrative:
+- SQL table and endpoint contract changes, plus pseudocode for business logic
+- key data structure / type changes
+- a shallow file tree showing changed responsibilities
+- React component tree changes, including important hooks, state, and package boundaries
+- call-tree, call-stack, control-flow, or data-flow changes
+Prefer \`diff\` blocks for edits to an existing shape; show the complete target shape when most of it is new or when diff notation would obscure ownership or order.
+Write as one human talking to another: simple, coherent, concise.`;
+
+const PR_DESCRIPTION_PUBLISH_INSTRUCTIONS = `Save and publish the description:
+- If a \`.humanlayer/tasks/{task-slug}/\` directory exists for the current task, save to \`.humanlayer/tasks/{task-slug}/pr-description.md\`; otherwise save to \`.humanlayer/tasks/pr-{number}/description.md\` (create directories as needed).
+- Publish with \`gh pr edit {number} --body-file {output-path}\` and confirm the update succeeded.`;
+
 const parsePullRequestCommandArguments = (
   args: string
 ): PullRequestCommandArguments => {
   const tokens = args.trim().split(/\s+/u).filter(Boolean);
+  const describeFlags: readonly string[] = PR_DESCRIBE_FLAGS;
   return {
-    request: tokens.filter((token) => token !== "--watch").join(" "),
+    describe: tokens.some((token) => describeFlags.includes(token)),
+    request: tokens
+      .filter((token) => token !== "--watch" && !describeFlags.includes(token))
+      .join(" "),
     watchChecks: tokens.includes("--watch"),
   };
 };
@@ -396,7 +429,7 @@ const buildPullRequestPrompt = (args: string): string => {
 
   return `Package the current working-tree changes into a GitHub pull request. Follow these steps in order:
 
-1. **Review the repository and changes** — inspect the current branch, working-tree status, and relevant staged, unstaged, and untracked changes. Discover the default branch from GitHub (for example, \`gh repo view --json defaultBranchRef --jq '.defaultBranchRef.name'\`) or the remote's symbolic HEAD; never assume \`main\` or \`master\`. Do not commit anything unrelated or pre-existing.
+1. **Review the repository and changes** — inspect the current branch, working-tree status, and relevant staged, unstaged, and untracked changes. Discover the default branch from GitHub (for example, \`gh repo view --json defaultBranchRef --jq '.defaultBranchRef.name'\`) or the remote's symbolic HEAD; never assume \`main\` or \`master\`. Do not commit anything unrelated or pre-existing. Read the complete diff and enough surrounding code to understand behavior and ownership.
 
 2. **Choose a branch** — if the current branch is a non-default branch, including a branch already checked out in a linked worktree, use it as-is; do not create or switch branches. If it is the default branch or HEAD is detached, derive a short, kebab-case branch name from the change, unless the request below provides one, and create it from the current HEAD with \`git switch -c <branch>\`.
 
@@ -408,27 +441,44 @@ const buildPullRequestPrompt = (args: string): string => {
 
 4. **Push and open a PR** — push the selected branch with \`git push -u origin <branch>\`, then open a PR against the discovered default branch using \`gh pr create --base <default-branch>\`:
    - Title: the same as the commit subject.
-   - Body: a short summary of what changed and why, plus any verification steps the reviewer can run. Use \`gh\`'s \`--body\` flag or a heredoc.
+   - ${PR_BODY_TEMPLATE_INSTRUCTIONS}
+   - Publish the body with \`gh\`'s \`--body\` flag or a heredoc.
+   - ${PR_DESCRIPTION_PUBLISH_INSTRUCTIONS.replaceAll("{number}", "<PR-NUMBER>")}
    - If \`gh\` is unavailable or auth fails, stop and report the exact error instead of falling back to manual instructions.
 
 5. **GitHub checks** — ${checkInstruction}
 
-6. **Report back** — print the PR URL and a one-line summary of the branch, commit, and PR.
+6. **Report back** — report using this shape: PR link with number and title, saved description path, 2-3 sentence summary, and a concise list of changed files.
 
 Requested branch name or PR description:
 ${request || "(none provided; infer it from the relevant changes)"}`;
 };
 
-const registerPullRequestCommand = (pi: ExtensionAPI): void => {
-  pi.registerCommand("pr", {
-    description:
-      "Commit the current changes and open a GitHub pull request; pass --watch to monitor checks",
-    handler: async (args, ctx) => {
-      await ctx.waitForIdle();
-      pi.sendUserMessage(buildPullRequestPrompt(args));
-      await ctx.waitForIdle();
-    },
-  });
+const buildPrDescribePrompt = (
+  pr: PrMetadata,
+  request: string,
+  watchChecks: boolean
+): string => {
+  const checkInstruction = watchChecks
+    ? "After updating the PR, run `gh pr checks <PR-NUMBER> --watch --interval 10`. Wait until all reported checks finish, then summarize passed, failed, and cancelled checks. If watching fails, report the exact error."
+    : "Do not wait for GitHub checks after updating the PR.";
+
+  return `Rewrite the description for PR #${pr.number} — ${pr.title} (${pr.url}) using the visual-pr template. Follow these steps in order:
+
+1. **Identify the PR** — confirm state with \`gh pr view --json url,number,title,state,baseRefName,headRefName\`. The target is PR #${pr.number} on \`${pr.headRefName}\` → \`${pr.baseRefName}\`. Do not commit, push, or switch branches.
+
+2. **Gather context** — read the complete PR diff (\`gh pr diff ${pr.number}\` plus \`gh pr view\` metadata) and enough surrounding code to understand behavior and ownership. Collect any ticket, task, or plan URLs only when already known from the branch or conversation.
+
+3. **Write the description** — ${PR_BODY_TEMPLATE_INSTRUCTIONS}
+
+4. **Save and publish** — ${PR_DESCRIPTION_PUBLISH_INSTRUCTIONS.replaceAll("{number}", String(pr.number))}
+
+5. **GitHub checks** — ${checkInstruction}
+
+6. **Report back** — report using this shape: PR link with number and title, saved description path, 2-3 sentence summary, and a concise list of changed files.
+
+User guidance for this description (takes precedence when provided):
+${request || "(none provided; infer it from the PR diff)"}`;
 };
 
 const fetchPrRepoContext = async (
@@ -463,6 +513,38 @@ const fetchPrRepoContext = async (
   const pr = parseJsonAs(prResult.stdout, "pull request", isPrMetadata);
   const [owner, name] = repo.nameWithOwner.split("/");
   return { name, owner, pr };
+};
+
+const registerPullRequestCommand = (pi: ExtensionAPI): void => {
+  pi.registerCommand("pr", {
+    description:
+      "Commit the current changes and open a GitHub pull request with a visual-pr template body; pass --describe to only rewrite the current PR description, --watch to monitor checks",
+    handler: async (args, ctx) => {
+      const { describe, request, watchChecks } =
+        parsePullRequestCommandArguments(args);
+      if (!describe) {
+        await ctx.waitForIdle();
+        pi.sendUserMessage(buildPullRequestPrompt(args));
+        await ctx.waitForIdle();
+        return;
+      }
+
+      await ctx.waitForIdle();
+      ctx.ui.setStatus("pr", "Resolving pull request...");
+      try {
+        const { pr } = await fetchPrRepoContext(pi, ctx.cwd);
+        pi.sendUserMessage(buildPrDescribePrompt(pr, request, watchChecks));
+        await ctx.waitForIdle();
+      } catch (error) {
+        ctx.ui.notify(
+          `Could not describe PR: ${githubErrorMessage(error)}`,
+          "error"
+        );
+      } finally {
+        ctx.ui.setStatus("pr", undefined);
+      }
+    },
+  });
 };
 
 const fetchUnresolvedReviewThreads = async (
