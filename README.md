@@ -5,6 +5,7 @@ published as npm packages under `@mholtzscher`.
 
 | Package | Extension |
 |---|---|
+| `@mholtzscher/pi-extensions` | **bundle** — all five below in one install |
 | `@mholtzscher/pi-exit` | `exit` command + Vim-style `:q` handler |
 | `@mholtzscher/pi-github-tools` | `/pr`, `/pr-comments`, `/pr-comments-fix`, `/pr-actions`, `/pr-review` |
 | `@mholtzscher/pi-spec-tools` | `/implement-spec`, `/implement-spec-stacked`, `/scrub-spec`, `/spec-annotate`, `/scrub-spec-bg` |
@@ -14,6 +15,16 @@ published as npm packages under `@mholtzscher`.
 ## Install
 
 Add to `~/.pi/agent/settings.json`:
+
+```json
+{
+  "packages": [
+    "npm:@mholtzscher/pi-extensions"
+  ]
+}
+```
+
+Or pick extensions individually:
 
 ```json
 {
@@ -44,8 +55,9 @@ per-package `publishConfig`).
 npm pack --dry-run -w @mholtzscher/pi-exit
 npm publish -w @mholtzscher/pi-exit --provenance
 
-# then the rest
-for p in pi-exit pi-github-tools pi-spec-tools pi-codex-usage pi-opencode-usage; do
+# then the rest (the bundle has no dependencies, so order doesn't matter;
+# its files are synced from packages/pi-*/index.ts by its `prepack` script)
+for p in pi-github-tools pi-spec-tools pi-codex-usage pi-opencode-usage pi-extensions; do
   npm publish -w @mholtzscher/$p --provenance
 done
 ```
