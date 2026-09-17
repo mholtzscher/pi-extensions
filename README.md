@@ -80,10 +80,20 @@ Releases are automated with [release-please](https://github.com/googleapis/relea
   the workspace from the tag, and runs
   `npm publish -w @mholtzscher/<name> --provenance --access public`.
 
-One-time setup (repo Settings → Secrets and variables → Actions):
+One-time setup (per package — one package, one trust relationship):
 
-- `NPM_TOKEN`: a granular npm access token with read+write on the
-  `@mholtzscher` scope. (Alternative: npm trusted publishing for the GitHub
-  repo, in which case the token can be dropped — `id-token: write` is already set.)
-- Push this repo to GitHub first; release-please opens its first release PR
-  after the first `feat:`/`fix:` commit lands on `main`.
+1. **First publish needs a token.** Unlike PyPI's pending publishers, npm
+   requires the package to exist before you can attach a trusted publisher.
+   Publish `0.1.0` once with a token — easiest is locally:
+   `npm login && npm publish -w @mholtzscher/pi-exit --provenance --access public`
+   (repeat for each of the six packages, or script the loop from the README).
+   Afterwards the token can be revoked; it is never stored in GitHub.
+2. **Attach the trusted publisher.** For each package: npmjs.com → package →
+   Settings → Trusted Publisher → GitHub Actions, with user `mholtzscher`,
+   repository `pi-extensions`, workflow filename `publish.yml` — and allow the
+   `npm publish` action (new configurations default to stage-only).
+3. **(Optional, recommended) lock the door.** Package Settings → Publishing
+   access → "Require two-factor authentication and disallow tokens". OIDC
+   publishes keep working; token publishes stop entirely.
+4. Push this repo to GitHub; release-please opens its first release PR after
+   the first `feat:`/`fix:` commit lands on `main`.

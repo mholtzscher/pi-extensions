@@ -12,7 +12,7 @@ on:
 
 permissions:
   contents: read
-  id-token: write # required for `npm publish --provenance`
+  id-token: write # OIDC for npm trusted publishing (no long-lived token)
 
 jobs:
   publish:
@@ -24,6 +24,10 @@ jobs:
         with:
           node-version: 22
           registry-url: https://registry.npmjs.org
+
+      # Trusted publishing requires npm CLI >= 11.5.1; setup-node's bundled
+      # npm is older, so upgrade it first.
+      - run: npm install -g npm@latest
 
       - run: npm ci
 
@@ -43,6 +47,7 @@ jobs:
           esac
           echo "scope=$SCOPE" >> "$GITHUB_OUTPUT"
 
-      - run: npm publish -w ${{ steps.pkg.outputs.scope }} --provenance --access public
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+      # No NODE_AUTH_TOKEN: authentication is the workflow's OIDC identity,
+      # trusted by each package's configured publisher on npmjs.com.
+      # Provenance attestations are generated automatically.
+      - run: npm publish -w ${{ steps.pkg.outputs.scope }} --access public
