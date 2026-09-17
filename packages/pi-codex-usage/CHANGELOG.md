@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.2](https://github.com/mholtzscher/pi-extensions/compare/pi-codex-usage-v0.1.1...pi-codex-usage-v0.1.2) (2026-09-17)
+
+
+### Bug Fixes
+
+* **codex-usage:** send chatgpt-account-id header for usage requests ([ac32b61](https://github.com/mholtzscher/pi-extensions/commit/ac32b6119def9ebb11ff63cb5cb6fef9b99767c1))
+
 ## [0.1.1](https://github.com/mholtzscher/pi-extensions/compare/pi-codex-usage-v0.1.0...pi-codex-usage-v0.1.1) (2026-09-17)
 
 
