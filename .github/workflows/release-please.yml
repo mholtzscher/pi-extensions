@@ -1,5 +1,20 @@
 name: release-please
 
+# This workflow both cuts the release and publishes it, on purpose.
+#
+# release-please authenticates with the built-in GITHUB_TOKEN, and per GitHub's
+# docs "events triggered by the GITHUB_TOKEN will not create a new workflow run"
+# (only workflow_dispatch and repository_dispatch are exempt). So a separate
+# workflow listening on `release: published` would never fire and releases would
+# be tagged but silently never reach npm. Publishing as a dependent job stays
+# inside this run, so no cross-workflow event -- and no PAT -- is needed.
+#
+# Trade-off: GITHUB_TOKEN-created pull requests do not run CI automatically, so
+# the release PR shows no `check` result until a maintainer approves the run.
+#
+# Workflow-only commits bump nothing: release-please attributes commits to a
+# package by path, and .github/ belongs to no package.
+
 on:
   push:
     branches:
@@ -7,13 +22,53 @@ on:
 
 permissions:
   contents: write
+  issues: write
   pull-requests: write
 
 jobs:
-  release-please:
+  release:
     runs-on: ubuntu-latest
+    outputs:
+      releases_created: ${{ steps.release.outputs.releases_created }}
+      paths_released: ${{ steps.release.outputs.paths_released }}
     steps:
-      - uses: googleapis/release-please-action@v4
+      - uses: googleapis/release-please-action@v5
+        id: release
         with:
           config-file: release-please-config.json
           manifest-file: .release-please-manifest.json
+
+  publish:
+    needs: release
+    if: needs.release.outputs.releases_created == 'true'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write # OIDC identity for npm trusted publishing
+    strategy:
+      # One job per released package; a failure in one must not cancel the rest.
+      fail-fast: false
+      matrix:
+        path: ${{ fromJSON(needs.release.outputs.paths_released) }}
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          registry-url: https://registry.npmjs.org
+
+      # Trusted publishing requires npm >= 11.5.1; setup-node's bundled npm is
+      # older, so upgrade it before publishing.
+      - run: npm install -g npm@latest
+
+      - run: npm ci
+
+      # `-w` accepts a workspace path, so the released path doubles as the
+      # filter -- no name lookup table to keep in sync when a package is added.
+      #
+      # No NODE_AUTH_TOKEN: npm authenticates the workflow's OIDC identity
+      # against each package's trusted publisher on npmjs.com, whose configured
+      # workflow filename must be `release-please.yml`. Provenance attestations
+      # are generated automatically.
+      - run: npm publish -w "${{ matrix.path }}"
