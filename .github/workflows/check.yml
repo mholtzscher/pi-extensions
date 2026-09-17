@@ -19,7 +19,11 @@ jobs:
 
       - run: npm ci
 
-      - run: npm run check
+      - name: Lint and format check
+        run: npm run check
+
+      - name: Typecheck
+        run: npm run typecheck
 
       # The bundle's *.ts files are synced copies of packages/pi-*/index.ts.
       # Committing them (instead of gitignoring) means release-please sees the

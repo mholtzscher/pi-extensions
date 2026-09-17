@@ -8,5 +8,4 @@ Pi extension: `specs/` picker commands for spec-driven workflows.
 - `/spec-annotate` — annotate a spec with Plannotator
 - `/scrub-spec-bg` — scrub a spec in a background subagent
 
-Add `"npm:@mholtzscher/pi-spec-tools"` to the `packages` array in
-`~/.pi/agent/settings.json`.
+Add `"npm:@mholtzscher/pi-spec-tools"` to the `packages` array in `~/.pi/agent/settings.json`.

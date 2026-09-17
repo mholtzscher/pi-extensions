@@ -2,7 +2,16 @@
   "name": "@mholtzscher/pi-extensions",
   "version": "0.1.0",
   "description": "Pi extension bundle: exit, github-tools, spec-tools, codex-usage, and opencode-usage in one install",
-  "type": "module",
+  "keywords": [
+    "bundle",
+    "pi",
+    "pi-extension",
+    "pi-package"
+  ],
+  "homepage": "https://github.com/mholtzscher/pi-extensions/tree/main/packages/pi-extensions#readme",
+  "bugs": {
+    "url": "https://github.com/mholtzscher/pi-extensions/issues"
+  },
   "license": "MIT",
   "author": "Michael Holtzscher",
   "repository": {
@@ -10,22 +19,6 @@
     "url": "git+https://github.com/mholtzscher/pi-extensions.git",
     "directory": "packages/pi-extensions"
   },
-  "homepage": "https://github.com/mholtzscher/pi-extensions/tree/main/packages/pi-extensions#readme",
-  "bugs": {
-    "url": "https://github.com/mholtzscher/pi-extensions/issues"
-  },
-  "publishConfig": {
-    "access": "public"
-  },
-  "engines": {
-    "node": ">=20.6.0"
-  },
-  "keywords": [
-    "pi-package",
-    "pi",
-    "pi-extension",
-    "bundle"
-  ],
   "files": [
     "exit.ts",
     "github-tools.ts",
@@ -35,6 +28,20 @@
     "README.md",
     "LICENSE"
   ],
+  "type": "module",
+  "publishConfig": {
+    "access": "public"
+  },
+  "scripts": {
+    "sync": "cp ../pi-exit/index.ts ./exit.ts && cp ../pi-github-tools/index.ts ./github-tools.ts && cp ../pi-spec-tools/index.ts ./spec-tools.ts && cp ../pi-codex-usage/index.ts ./codex-usage.ts && cp ../pi-opencode-usage/index.ts ./opencode-usage.ts",
+    "prepack": "npm run sync --silent"
+  },
+  "peerDependencies": {
+    "@earendil-works/pi-coding-agent": "*"
+  },
+  "engines": {
+    "node": ">=20.6.0"
+  },
   "pi": {
     "extensions": [
       "./exit.ts",
@@ -43,12 +50,5 @@
       "./codex-usage.ts",
       "./opencode-usage.ts"
     ]
-  },
-  "scripts": {
-    "sync": "cp ../pi-exit/index.ts ./exit.ts && cp ../pi-github-tools/index.ts ./github-tools.ts && cp ../pi-spec-tools/index.ts ./spec-tools.ts && cp ../pi-codex-usage/index.ts ./codex-usage.ts && cp ../pi-opencode-usage/index.ts ./opencode-usage.ts",
-    "prepack": "npm run sync --silent"
-  },
-  "peerDependencies": {
-    "@earendil-works/pi-coding-agent": "*"
   }
 }

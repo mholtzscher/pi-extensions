@@ -2,7 +2,15 @@
   "name": "@mholtzscher/pi-spec-tools",
   "version": "0.1.0",
   "description": "Pi extension: specs/ picker commands for implement and scrub workflows",
-  "type": "module",
+  "keywords": [
+    "pi",
+    "pi-extension",
+    "pi-package"
+  ],
+  "homepage": "https://github.com/mholtzscher/pi-extensions/tree/main/packages/pi-spec-tools#readme",
+  "bugs": {
+    "url": "https://github.com/mholtzscher/pi-extensions/issues"
+  },
   "license": "MIT",
   "author": "Michael Holtzscher",
   "repository": {
@@ -10,32 +18,24 @@
     "url": "git+https://github.com/mholtzscher/pi-extensions.git",
     "directory": "packages/pi-spec-tools"
   },
-  "homepage": "https://github.com/mholtzscher/pi-extensions/tree/main/packages/pi-spec-tools#readme",
-  "bugs": {
-    "url": "https://github.com/mholtzscher/pi-extensions/issues"
-  },
-  "publishConfig": {
-    "access": "public"
-  },
-  "engines": {
-    "node": ">=20.6.0"
-  },
-  "keywords": [
-    "pi-package",
-    "pi",
-    "pi-extension"
-  ],
   "files": [
     "index.ts",
     "README.md",
     "LICENSE"
   ],
+  "type": "module",
+  "publishConfig": {
+    "access": "public"
+  },
+  "peerDependencies": {
+    "@earendil-works/pi-coding-agent": "*"
+  },
+  "engines": {
+    "node": ">=20.6.0"
+  },
   "pi": {
     "extensions": [
       "./index.ts"
     ]
-  },
-  "peerDependencies": {
-    "@earendil-works/pi-coding-agent": "*"
   }
 }

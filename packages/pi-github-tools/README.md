@@ -8,8 +8,6 @@ Pi extension: GitHub pull-request workflow commands.
 - `/pr-actions` — wait for checks on the current PR and report failures
 - `/pr-review` — pick an open PR and open it in Plannotator code review
 
-Requires the [`gh`](https://cli.github.com/) CLI (authenticated) and, for
-`/pr-review`, the Plannotator pi extension.
+Requires the [`gh`](https://cli.github.com/) CLI (authenticated) and, for `/pr-review`, the Plannotator pi extension.
 
-Add `"npm:@mholtzscher/pi-github-tools"` to the `packages` array in
-`~/.pi/agent/settings.json`.
+Add `"npm:@mholtzscher/pi-github-tools"` to the `packages` array in `~/.pi/agent/settings.json`.

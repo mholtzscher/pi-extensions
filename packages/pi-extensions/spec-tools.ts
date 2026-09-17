@@ -1,10 +1,20 @@
-import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { execFile } from "node:child_process";
 import { readdir, stat } from "node:fs/promises";
-import { join } from "node:path";
+import path from "node:path";
+import { promisify } from "node:util";
 
-function buildImplementationPrompt(specPath: string): string {
-  return `Implement @${specPath} end-to-end.
+import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
+
+// @types/node declares promisify() as taking a void-returning callback function,
+// so execFile (whose callback also yields stdout/stderr) trips strict-void-return.
+// oxlint-disable-next-line typescript/strict-void-return
+const execFileAsync = promisify(execFile);
+
+const GIT_TIMEOUT_MS = 5000;
+const GIT_MAX_BUFFER = 4 * 1024 * 1024;
+
+const buildImplementationPrompt = (specPath: string): string =>
+  `Implement @${specPath} end-to-end.
 
 Operate autonomously using ~/.pi/agent/skills/mholtzscher/agent-orchestrator/SKILL.md 
 1. Read the specification completely and follow all repository instructions.
@@ -15,10 +25,9 @@ Operate autonomously using ~/.pi/agent/skills/mholtzscher/agent-orchestrator/SKI
 6. Monitor all required GitHub Actions checks until they finish successfully. If a check fails, investigate it, fix the issue, validate locally, push the update, and repeat until the required checks pass.
 
 Only stop to ask for help when blocked by missing credentials or permissions, or when an ambiguity could cause a destructive or materially different outcome.`;
-}
 
-function buildStackedImplementationPrompt(specPath: string): string {
-  return `Implement @${specPath} end-to-end as a stack of pull requests, one per deliverable, using the official gh stack extension (github/gh-stack, stacked PRs public preview).
+const buildStackedImplementationPrompt = (specPath: string): string =>
+  `Implement @${specPath} end-to-end as a stack of pull requests, one per deliverable, using the official gh stack extension (github/gh-stack, stacked PRs public preview).
 
 Operate autonomously using ~/.pi/agent/skills/mholtzscher/agent-orchestrator/SKILL.md
 1. Read the specification completely and follow all repository instructions. Identify the ordered deliverables (e.g. Deliverables Ordered, Ordered implementation steps, Scope & Deliverables). If the spec has no explicit deliverables, infer the smallest sensible ordered split and proceed.
@@ -33,10 +42,9 @@ Operate autonomously using ~/.pi/agent/skills/mholtzscher/agent-orchestrator/SKI
 5. Report the full stack in dependency order (bottom to top) with a PR URL per deliverable plus a one-line summary of each branch, commit, and PR.
 
 Only stop to ask for help when blocked by missing credentials or permissions, or when an ambiguity could cause a destructive or materially different outcome.`;
-}
 
-function buildScrubTaskPrompt(specPath: string): string {
-  return `Review and refine @${specPath} for cohesiveness and brevity.
+const buildScrubTaskPrompt = (specPath: string): string =>
+  `Review and refine @${specPath} for cohesiveness and brevity.
 
 Goals:
 
@@ -63,17 +71,14 @@ When finished, report:
 - The main categories of duplication or stale material removed.
 - Any unresolved contradictions or decisions needing owner input.
 - Validation results.`;
-}
 
-function buildScrubPrompt(specPath: string): string {
-  return `/skill:unslop ${buildScrubTaskPrompt(specPath)}`;
-}
+const buildScrubPrompt = (specPath: string): string =>
+  `/skill:unslop ${buildScrubTaskPrompt(specPath)}`;
 
-function buildAnnotationPrompt(specPath: string): string {
-  return `/plannotator-annotate @${specPath}`;
-}
+const buildAnnotationPrompt = (specPath: string): string =>
+  `/plannotator-annotate @${specPath}`;
 
-function buildBackgroundScrubPrompt(specPath: string): string {
+const buildBackgroundScrubPrompt = (specPath: string): string => {
   const prompt = `Before editing, read and follow the unslop skill at ~/.pi/agent/skills/pstack/unslop/SKILL.md.\n\n${buildScrubTaskPrompt(specPath)}`;
 
   return `Call the Agent tool exactly once with these arguments:
@@ -84,42 +89,51 @@ function buildBackgroundScrubPrompt(specPath: string): string {
 - prompt: ${JSON.stringify(prompt)}
 
 Do not scrub the specification yourself. After the Agent tool confirms the background spawn, stop.`;
-}
+};
 
-type SpecRecency = {
+interface SpecRecency {
   name: string;
   /** 0 for uncommitted files, 1 for committed ones; lower sorts first. */
   rank: number;
   /** Milliseconds: mtime when uncommitted, committer date when committed. */
   recency: number;
-};
+}
 
 /** Runs git, resolving to null instead of rejecting so callers can treat failure as "no git". */
-function runGit(args: string[], cwd: string): Promise<string | null> {
-  return new Promise((resolve) => {
-    execFile(
-      "git",
-      args,
-      { cwd, encoding: "utf8", timeout: 5_000, maxBuffer: 4 * 1024 * 1024 },
-      (error, stdout) => resolve(error ? null : stdout),
-    );
-  });
-}
+const runGit = async (args: string[], cwd: string): Promise<string | null> => {
+  try {
+    const { stdout } = await execFileAsync("git", args, {
+      cwd,
+      encoding: "utf-8",
+      maxBuffer: GIT_MAX_BUFFER,
+      timeout: GIT_TIMEOUT_MS,
+    });
+    return stdout;
+  } catch {
+    return null;
+  }
+};
 
 /**
  * Names of spec files with uncommitted changes, relative to specsDirectory, or null when
  * specsDirectory is not in a git repository. Covers staged, unstaged, and untracked files.
  */
-async function readUncommittedSpecNames(specsDirectory: string): Promise<Set<string> | null> {
+const readUncommittedSpecNames = async (
+  specsDirectory: string
+): Promise<Set<string> | null> => {
   const prefix = await runGit(["rev-parse", "--show-prefix"], specsDirectory);
-  if (prefix === null) return null;
+  if (prefix === null) {
+    return null;
+  }
 
   // --no-renames avoids the extra source path that -z emits for rename entries.
   const status = await runGit(
     ["status", "--porcelain", "-z", "--no-renames", "--", "."],
-    specsDirectory,
+    specsDirectory
   );
-  if (status === null) return null;
+  if (status === null) {
+    return null;
+  }
 
   // git status paths are always repository-root relative, so strip the specs/ prefix.
   const pathPrefix = prefix.trim();
@@ -128,26 +142,41 @@ async function readUncommittedSpecNames(specsDirectory: string): Promise<Set<str
       .split("\0")
       .filter((entry) => entry.length > 0)
       .map((entry) => entry.slice(3))
-      .filter((path) => path.startsWith(pathPrefix))
-      .map((path) => path.slice(pathPrefix.length)),
+      .filter((entry) => entry.startsWith(pathPrefix))
+      .map((entry) => entry.slice(pathPrefix.length))
   );
-}
+};
 
 /** Committer date in milliseconds of the last commit touching the file, or null when untracked. */
-async function readLastCommitTimeMs(specsDirectory: string, name: string): Promise<number | null> {
-  const stdout = await runGit(["log", "-1", "--format=%ct", "--", name], specsDirectory);
-  if (stdout === null) return null;
+const readLastCommitTimeMs = async (
+  specsDirectory: string,
+  name: string
+): Promise<number | null> => {
+  const stdout = await runGit(
+    ["log", "-1", "--format=%ct", "--", name],
+    specsDirectory
+  );
+  if (stdout === null) {
+    return null;
+  }
 
-  const seconds = Number.parseInt(stdout.trim(), 10);
+  const raw = stdout.trim();
+  if (raw === "") {
+    return null;
+  }
+  const seconds = Math.trunc(Number(raw));
   return Number.isFinite(seconds) ? seconds * 1000 : null;
-}
+};
 
 /**
  * Orders spec file names newest first. Worktree checkouts stamp every file with the same mtime,
  * so uncommitted files use their mtime (which the editor just refreshed) and committed files use
  * the last commit that touched them. Without git, every file falls back to mtime.
  */
-async function orderSpecsByRecency(specsDirectory: string, names: string[]): Promise<string[]> {
+const orderSpecsByRecency = async (
+  specsDirectory: string,
+  names: string[]
+): Promise<string[]> => {
   const uncommitted = await readUncommittedSpecNames(specsDirectory);
 
   const recencies: SpecRecency[] = await Promise.all(
@@ -158,32 +187,38 @@ async function orderSpecsByRecency(specsDirectory: string, names: string[]): Pro
           ? null
           : await readLastCommitTimeMs(specsDirectory, name);
 
+      let recency = committedAt;
+      if (recency === null) {
+        const fileStat = await stat(path.join(specsDirectory, name));
+        recency = fileStat.mtimeMs;
+      }
+
       return {
         name,
         rank: committedAt === null ? 0 : 1,
-        recency: committedAt ?? (await stat(join(specsDirectory, name))).mtimeMs,
+        recency,
       };
-    }),
+    })
   );
 
   return recencies
-    .sort(
+    .toSorted(
       (left, right) =>
         left.rank - right.rank ||
         right.recency - left.recency ||
-        left.name.localeCompare(right.name),
+        left.name.localeCompare(right.name)
     )
     .map((entry) => entry.name);
-}
+};
 
-type SpecCommand = {
+interface SpecCommand {
   name: string;
   description: string;
   pickerTitle: string;
   buildPrompt: (specPath: string) => string;
-};
+}
 
-function registerSpecCommand(pi: ExtensionAPI, command: SpecCommand): void {
+const registerSpecCommand = (pi: ExtensionAPI, command: SpecCommand): void => {
   pi.registerCommand(command.name, {
     description: command.description,
     handler: async (_args, ctx) => {
@@ -194,17 +229,16 @@ function registerSpecCommand(pi: ExtensionAPI, command: SpecCommand): void {
 
       await ctx.waitForIdle();
 
-      const specsDirectory = join(ctx.cwd, "specs");
+      const specsDirectory = path.join(ctx.cwd, "specs");
       let specs: string[];
 
       try {
-        const files = (await readdir(specsDirectory, { withFileTypes: true })).filter((entry) =>
-          entry.isFile(),
-        );
+        const entries = await readdir(specsDirectory, { withFileTypes: true });
+        const files = entries.filter((entry) => entry.isFile());
 
         specs = await orderSpecsByRecency(
           specsDirectory,
-          files.map((entry) => entry.name),
+          files.map((entry) => entry.name)
         );
       } catch (error) {
         const message = error instanceof Error ? error.message : String(error);
@@ -218,42 +252,48 @@ function registerSpecCommand(pi: ExtensionAPI, command: SpecCommand): void {
       }
 
       const selected = await ctx.ui.select(command.pickerTitle, specs);
-      if (!selected) return;
+      if (selected === undefined || selected === "") {
+        return;
+      }
 
-      pi.sendUserMessage(command.buildPrompt(`specs/${selected}`), { expandPromptTemplates: true });
+      pi.sendUserMessage(command.buildPrompt(`specs/${selected}`), {
+        expandPromptTemplates: true,
+      });
     },
   });
-}
+};
 
-export default function (pi: ExtensionAPI) {
+export default function piSpecTools(pi: ExtensionAPI) {
   registerSpecCommand(pi, {
-    name: "implement-spec",
-    description: "Choose a file from specs/ and ask the agent to implement it",
-    pickerTitle: "Choose a specification to implement",
     buildPrompt: buildImplementationPrompt,
+    description: "Choose a file from specs/ and ask the agent to implement it",
+    name: "implement-spec",
+    pickerTitle: "Choose a specification to implement",
   });
   registerSpecCommand(pi, {
-    name: "implement-spec-stacked",
-    description: "Choose a file from specs/ and ask the agent to implement it as stacked PRs, one per deliverable",
-    pickerTitle: "Choose a specification to implement as a stack",
     buildPrompt: buildStackedImplementationPrompt,
+    description:
+      "Choose a file from specs/ and ask the agent to implement it as stacked PRs, one per deliverable",
+    name: "implement-spec-stacked",
+    pickerTitle: "Choose a specification to implement as a stack",
   });
   registerSpecCommand(pi, {
-    name: "scrub-spec",
-    description: "Choose a file from specs/ and ask the agent to refine it",
-    pickerTitle: "Choose a specification to refine",
     buildPrompt: buildScrubPrompt,
+    description: "Choose a file from specs/ and ask the agent to refine it",
+    name: "scrub-spec",
+    pickerTitle: "Choose a specification to refine",
   });
   registerSpecCommand(pi, {
-    name: "spec-annotate",
-    description: "Choose a file from specs/ and annotate it with Plannotator",
-    pickerTitle: "Choose a specification to annotate",
     buildPrompt: buildAnnotationPrompt,
+    description: "Choose a file from specs/ and annotate it with Plannotator",
+    name: "spec-annotate",
+    pickerTitle: "Choose a specification to annotate",
   });
   registerSpecCommand(pi, {
-    name: "scrub-spec-bg",
-    description: "Choose a file from specs/ and refine it in a background subagent",
-    pickerTitle: "Choose a specification to refine in the background",
     buildPrompt: buildBackgroundScrubPrompt,
+    description:
+      "Choose a file from specs/ and refine it in a background subagent",
+    name: "scrub-spec-bg",
+    pickerTitle: "Choose a specification to refine in the background",
   });
 }

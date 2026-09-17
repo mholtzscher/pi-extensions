@@ -8,10 +8,6 @@ All mholtzscher pi extensions in one install:
 - ChatGPT Codex weekly usage status meter
 - opencode.ai usage status meter
 
-Add `"npm:@mholtzscher/pi-extensions"` to the `packages` array in
-`~/.pi/agent/settings.json`.
+Add `"npm:@mholtzscher/pi-extensions"` to the `packages` array in `~/.pi/agent/settings.json`.
 
-Prefer picking extensions individually? Install the granular packages
-instead: `@mholtzscher/pi-exit`, `@mholtzscher/pi-github-tools`,
-`@mholtzscher/pi-spec-tools`, `@mholtzscher/pi-codex-usage`,
-`@mholtzscher/pi-opencode-usage`.
+Prefer picking extensions individually? Install the granular packages instead: `@mholtzscher/pi-exit`, `@mholtzscher/pi-github-tools`, `@mholtzscher/pi-spec-tools`, `@mholtzscher/pi-codex-usage`, `@mholtzscher/pi-opencode-usage`.

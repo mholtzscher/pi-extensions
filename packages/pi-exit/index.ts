@@ -7,19 +7,21 @@
 
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 
-export default function (pi: ExtensionAPI) {
-  const shutdown = (ctx: { shutdown: () => void }) => {
-    ctx.shutdown();
-  };
+const shutdown = (ctx: { shutdown: () => void }) => {
+  ctx.shutdown();
+};
 
+export default function piExit(pi: ExtensionAPI) {
   pi.registerCommand("exit", {
     description: "Exit pi cleanly",
+    // pi types command handlers as Promise<void>, but shutdown is synchronous.
+    // oxlint-disable-next-line require-await
     handler: async (_args, ctx) => {
       shutdown(ctx);
     },
   });
 
-  pi.on("input", async (event, ctx) => {
+  pi.on("input", (event, ctx) => {
     if (event.text.trim() === ":q") {
       shutdown(ctx);
       return { action: "handled" as const };
