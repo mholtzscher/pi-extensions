@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.2.0](https://github.com/mholtzscher/pi-extensions/compare/pi-github-tools-v0.1.1...pi-github-tools-v0.2.0) (2026-09-17)
+
+
+### Features
+
+* **github-tools:** add /pr --describe to rewrite PR descriptions with visual-pr template ([a0793d7](https://github.com/mholtzscher/pi-extensions/commit/a0793d76c47c265f166e848d6e198c0b586447f2))
+
 ## [0.1.1](https://github.com/mholtzscher/pi-extensions/compare/pi-github-tools-v0.1.0...pi-github-tools-v0.1.1) (2026-09-17)
 
 
