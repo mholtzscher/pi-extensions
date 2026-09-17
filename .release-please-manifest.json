@@ -2,7 +2,7 @@
   "packages/pi-exit": "0.1.1",
   "packages/pi-github-tools": "0.2.0",
   "packages/pi-spec-tools": "0.2.0",
-  "packages/pi-codex-usage": "0.1.1",
+  "packages/pi-codex-usage": "0.1.2",
   "packages/pi-opencode-usage": "0.1.1",
-  "packages/pi-extensions": "0.2.0"
+  "packages/pi-extensions": "0.2.1"
 }
