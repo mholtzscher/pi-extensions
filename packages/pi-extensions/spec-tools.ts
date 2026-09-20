@@ -13,11 +13,6 @@ const execFileAsync = promisify(execFile);
 const GIT_TIMEOUT_MS = 5000;
 const GIT_MAX_BUFFER = 4 * 1024 * 1024;
 
-const GRILL_WITH_DOCS_SKILL_PATH =
-  "~/.pi/agent/skills/mattpocock/grill-with-docs/SKILL.md";
-const SPEC_PLANNER_SKILL_PATH =
-  "~/.pi/agent/skills/mholtzscher/spec-planner/SKILL.md";
-
 const buildImplementationPrompt = (specPath: string): string =>
   `Implement @${specPath} end-to-end.
 
@@ -118,14 +113,13 @@ Do not scrub the specification yourself. After the Agent tool confirms the backg
 };
 
 const buildCreateSpecPrompt = (idea: string): string =>
-  `Create a specification for the idea below. Work it through in two stages, reading and following each skill:
-
-1. grill-with-docs: read and follow ${GRILL_WITH_DOCS_SKILL_PATH}.
-2. spec-planner: read and follow ${SPEC_PLANNER_SKILL_PATH}.
+  `/skill:grill-with-docs
 
 Idea:
 
-${idea}`;
+${idea}
+
+When the interview and domain model are complete, invoke the spec-planner skill via the Skill tool and produce the implementation-ready spec through dialogue.`;
 
 interface SpecRecency {
   name: string;
