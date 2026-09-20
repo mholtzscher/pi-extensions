@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.3.0](https://github.com/mholtzscher/pi-extensions/compare/pi-spec-tools-v0.2.0...pi-spec-tools-v0.3.0) (2026-09-20)
+
+
+### Features
+
+* **spec-tools:** add /create-spec command to draft a spec from a new idea ([#8](https://github.com/mholtzscher/pi-extensions/issues/8)) ([ed1526a](https://github.com/mholtzscher/pi-extensions/commit/ed1526a65525c5344eb860f259bb44175f89295c))
+
 ## [0.2.0](https://github.com/mholtzscher/pi-extensions/compare/pi-spec-tools-v0.1.1...pi-spec-tools-v0.2.0) (2026-09-17)
 
 
