@@ -120,8 +120,8 @@ Do not scrub the specification yourself. After the Agent tool confirms the backg
 const buildCreateSpecPrompt = (idea: string): string =>
   `Create a specification for the idea below. Work it through in two stages, reading and following each skill:
 
-1. grill-with-docs: read and follow ${GRILL_WITH_DOCS_SKILL_PATH}. It directs you to interview the user (grilling) and build the domain model (domain-modeling), sharpening the plan and design and creating docs (ADRs and glossary) as it goes.
-2. spec-planner: read and follow ${SPEC_PLANNER_SKILL_PATH} to produce the implementation-ready spec through dialogue.
+1. grill-with-docs: read and follow ${GRILL_WITH_DOCS_SKILL_PATH}.
+2. spec-planner: read and follow ${SPEC_PLANNER_SKILL_PATH}.
 
 Idea:
 
