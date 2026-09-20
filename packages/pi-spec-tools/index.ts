@@ -112,6 +112,15 @@ const buildBackgroundScrubPrompt = (specPath: string): string => {
 Do not scrub the specification yourself. After the Agent tool confirms the background spawn, stop.`;
 };
 
+const buildCreateSpecPrompt = (idea: string): string =>
+  `/skill:grill-with-docs
+
+Idea:
+
+${idea}
+
+When the interview and domain model are complete, invoke the spec-planner skill via the Skill tool and produce the implementation-ready spec through dialogue.`;
+
 interface SpecRecency {
   name: string;
   /** 0 for uncommitted files, 1 for committed ones; lower sorts first. */
@@ -284,7 +293,37 @@ const registerSpecCommand = (pi: ExtensionAPI, command: SpecCommand): void => {
   });
 };
 
+const registerCreateSpecCommand = (pi: ExtensionAPI): void => {
+  pi.registerCommand("create-spec", {
+    description:
+      "Capture a new idea in a text box and draft a spec via grill-with-docs and spec-planner",
+    handler: async (_args, ctx) => {
+      if (!ctx.hasUI) {
+        ctx.ui.notify("/create-spec requires an interactive UI", "warning");
+        return;
+      }
+
+      await ctx.waitForIdle();
+
+      const rawIdea = await ctx.ui.input("What would you like to build?");
+      if (rawIdea === undefined) {
+        return;
+      }
+
+      const idea = rawIdea.trim();
+      if (idea.length === 0) {
+        return;
+      }
+
+      pi.sendUserMessage(buildCreateSpecPrompt(idea), {
+        expandPromptTemplates: true,
+      });
+    },
+  });
+};
+
 export default function piSpecTools(pi: ExtensionAPI) {
+  registerCreateSpecCommand(pi);
   registerSpecCommand(pi, {
     buildPrompt: buildImplementationPrompt,
     description: "Choose a file from specs/ and ask the agent to implement it",
